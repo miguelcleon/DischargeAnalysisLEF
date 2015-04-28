@@ -1,0 +1,320 @@
+---
+title: "RIDischarge"
+author: "Miguel Leon"
+date: "Monday, April 13, 2015"
+output: html_document
+---
+
+
+```{r, echo=FALSE, message=FALSE}
+
+
+# Load the project
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" # library(devtools)
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+library(ProjectTemplate)
+#source(paste0(project_directory,"/","lib/loadProject.R"))
+setwd(project_directory)
+source("C:/Users/leonmi/Google Drive/loadest/composite_client/src/scripts/reportHelpers.R")
+
+# Redefine project_directory now that loadProjectFromCache has cleared the old variable
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" 
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+
+# Set options for producing the html filee
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, warn=FALSE)
+options(warn=-1)
+
+# Load libraries we'll use, suppressing messages via message=FALSE option to knitr chunk
+library(MASS)
+library(rloadest)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+#RIDischargeFrom1999
+insertRow <- function(existingDF, newrow, r) {
+  existingDF[seq(r+1,nrow(existingDF)+1),] <- existingDF[seq(r,nrow(existingDF)),]
+  existingDF[r,] <- newrow
+  existingDF
+}
+
+
+newnames <- as.vector(t(read.csv(
+  "RIDischarge.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+RIFullFlow <- read.csv(
+  "RIDischarge.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "RIDischargeFrom2006.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+RiFrom2006 <- read.csv(
+  "RIDischargeFrom2006.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+#DailyDischargeUSGS.csv
+
+newnames <- as.vector(t(read.csv(
+  "DailyDischargeUSGS.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+USGSDischarge <- read.csv(
+  "DailyDischargeUSGS.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+USGSDischarge$Date <- as.POSIXct(strptime(USGSDischarge$Date  ,format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+
+RIFullFlow$DateTime <- as.POSIXct(strptime(RIFullFlow$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+
+RiFrom2006$DateTime <- as.POSIXct(strptime(RiFrom2006$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+RIFullFlow<- merge(RIFullFlow,RiFrom2006,all=TRUE)
+#remove NA values 
+RIFullFlow <- RIFullFlow[!is.na(RIFullFlow$USGS_cfps),]
+RIFullFlow<- RIFullFlow[order(RIFullFlow$DateTime),]
+  
+
+RIFullFlow$num <- 1
+min15pyr <- with(RIFullFlow, tapply(num, YEAR, sum))
+
+```
+
+15 minute (or 10 min) records per year
+
+```{r, echo=FALSE, message=FALSE}
+
+min15pyr
+
+dt <- as.POSIXlt("1986-10-01 00:15:00")
+dt <- dt -900
+newrow <- list(1986,1,as.POSIXct(strptime(dt, format="%Y-%m-%d",tz="America/Puerto_Rico")),NA,NA,1986,1) #%H:%M:%S
+
+#,origin = "1900-01-01"
+#"1999-10-01 00:00:00","%Y-%m-%d %H:%M:%S",tz="America/Puerto_Rico"
+#USGS_Sonadora_IDA2 <- rbind(USGS_Sonadora_IDA, newrow)
+RIFullFlow<- insertRow(RIFullFlow, newrow, 1)
+
+RIFullFlow$diffsec <- c(NA, tail(RIFullFlow$DateTime, -1) - head(RIFullFlow$DateTime, -1))
+RIFullFlow$diffMin <- RIFullFlow$diffsec / 60
+
+RIFullFlow<-RIFullFlow[!RIFullFlow$diffMin ==10,]
+RIFullFlow<-RIFullFlow[!RIFullFlow$diffMin ==5,]
+
+RIFullFlow$diffsec[RIFullFlow$diffsec > 900] <- 900
+RIFullFlow$diffMin[RIFullFlow$diffMin > 15] <- 15
+
+#some of these are 5 minute not 15 minute need to make sure the cfps for each record represents the right amount of time. 
+totalCF15mCurr<- with(RIFullFlow, tapply(((USGS_cfps*diffsec)), YEAR, sum))
+totalCF15m2Curr <- totalCF15mCurr /with(RIFullFlow, tapply(((diffsec)), YEAR, sum))
+
+```
+
+mean discharge per year 
+
+```{r, echo=FALSE, message=FALSE}
+
+totalCF15m2Curr
+write.csv(totalCF15m2Curr,
+    "./RIMeanAnnualDischarge.csv",na="NA",,row.names=TRUE)
+
+```
+
+plot log discharge 2010 
+
+```{r, echo=FALSE, message=FALSE}
+
+
+
+#agggregate by day 
+
+```
+
+calculate mean daily discharge
+
+```{r, echo=FALSE, message=FALSE}
+
+RIFullFlow$Day<- format(RIFullFlow$DateTime, "%Y-%m-%d") 
+
+#FILL IN DISCHARGE MEAN FOR ALL TIMES 
+RIFullFlow<- RIFullFlow %>%
+  group_by(Day) %>% 
+  mutate(cfsps_day_mean=mean(USGS_cfps,na.rm=TRUE))
+days<- list(RIFullFlow$Day)
+RIFullFlowDaily<- aggregate(RIFullFlow,by=days, FUN=head, 1)
+
+#write daily discharge to a file 
+write.csv(RIFullFlowDaily,
+    "./RIDailyExport.csv",na="NA",,row.names=FALSE)
+
+#Q12014day<- transform(RIFullFlow, YR=as.numeric(format(Date, "%Y")))
+years<- list(RIFullFlowDaily$YEAR)
+RIFullFlowMeanDailytoYr<- aggregate(RIFullFlowDaily$cfsps_day_mean,by=years, FUN=sum)
+
+
+  ggplot() + ggtitle("RI log Discharge CFS") + 
+    geom_line(data= USGSDischarge, aes(x=Date, y=log(cfs.1), color="Mean Daily Discharge USGS"),alpha=.5)+
+   geom_line(data=RIFullFlowDaily , aes(x=DateTime, y=log(cfsps_day_mean), color="Mean Daily Discharge"),alpha=.5)
+startDate <- as.POSIXct("2013-01-01") 
+endDate <- as.POSIXct("2014-01-01")
+
+RIFullFlowDaily2<- RIFullFlowDaily[RIFullFlowDaily$DateTime >  startDate 
+                        & RIFullFlowDaily$DateTime < endDate,]
+
+USGSDischarge2<- USGSDischarge[USGSDischarge$Date >  startDate 
+                        & USGSDischarge$Date < endDate,]
+
+  ggplot() + ggtitle("RI log Discharge CFS 2013") + 
+    geom_line(data= USGSDischarge2, aes(x=Date, y=log(cfs.1), color="Mean Daily Discharge USGS"))+
+   geom_line(data=RIFullFlowDaily2 , aes(x=DateTime, y=log(cfsps_day_mean), color="Mean Daily Discharge"))
+
+
+
+startDate <- as.POSIXct("2009-01-01") 
+endDate <- as.POSIXct("2010-01-01")
+
+RIFullFlowDaily2<- RIFullFlowDaily[RIFullFlowDaily$DateTime >  startDate 
+                        & RIFullFlowDaily$DateTime < endDate,]
+
+USGSDischarge2<- USGSDischarge[USGSDischarge$Date >  startDate 
+                        & USGSDischarge$Date < endDate,]
+
+  ggplot() + ggtitle("RI Discharge CFS 2009") + 
+        geom_line(data= USGSDischarge2, aes(x=Date, y=cfs.1 , color="Mean Daily Discharge USGS"))+
+   geom_line(data=RIFullFlowDaily2 , aes(x=DateTime, y=cfsps_day_mean , color="Mean Daily Discharge"))
+ggplot() + ggtitle("RI log Discharge CFS 2009") + 
+       geom_line(data= USGSDischarge2, aes(x=Date, y=log(cfs.1) , color="Mean Daily Discharge USGS"))+
+   geom_line(data=RIFullFlowDaily2 , aes(x=DateTime, y=log(cfsps_day_mean) , color="Mean Daily Discharge"))
+
+startDate <- as.POSIXct("2007-01-01") 
+endDate <- as.POSIXct("2008-01-01")
+
+RIFullFlowDaily2<- RIFullFlowDaily[as.POSIXct(RIFullFlowDaily$DateTime) >  startDate 
+                        & as.POSIXct(RIFullFlowDaily$DateTime) < endDate,]
+
+USGSDischarge2<- USGSDischarge[USGSDischarge$Date >  startDate 
+                        & USGSDischarge$Date < endDate,]
+
+  ggplot() + ggtitle("RI Discharge CFS 2007") + 
+       geom_line(data= USGSDischarge2, aes(x=Date, y=cfs.1 , color="Mean Daily Discharge USGS"))+
+   geom_line(data=RIFullFlowDaily2 , aes(x=DateTime, y=cfsps_day_mean , color="Mean Daily Discharge"))
+ggplot() + ggtitle("RI log Discharge CFS 2007") + 
+       geom_line(data= USGSDischarge2, aes(x=Date, y=log(cfs.1) , color="Mean Daily Discharge USGS"))+
+   geom_line(data=RIFullFlowDaily2 , aes(x=DateTime, y=log(cfsps_day_mean) , color="Mean Daily Discharge"))
+```
+
+
+Daily mean CFS Stats
+1st is SD
+
+```{r, echo=FALSE, message=FALSE}
+
+sd(RIFullFlowDaily$cfsps_day_mean)
+summary(RIFullFlowDaily$cfsps_day_mean)
+
+```
+
+
+Daily mean CFS Stats from USGS data 
+1st is SD
+
+```{r, echo=FALSE, message=FALSE}
+
+sd(USGSDischarge$cfs.1)
+summary(USGSDischarge$cfs.1)
+
+```
+
+
+Daily mean CFS Stats 2014
+1st is SD
+
+```{r, echo=FALSE, message=FALSE}
+
+sd(RIFullFlowDaily2$cfsps_day_mean)
+summary(RIFullFlowDaily2$cfsps_day_mean)
+
+```
+
+
+Daily mean CFS Stats from USGS data 2014
+1st is SD
+
+```{r, echo=FALSE, message=FALSE}
+
+sd(USGSDischarge2$cfs.1)
+summary(USGSDischarge2$cfs.1)
+
+```
+
+days per year
+
+```{r, echo=FALSE, message=FALSE}
+
+
+daypYr <- with(RIFullFlowDaily, tapply(num, YEAR, sum))
+daypYr
+```
+
+calculate annual mean discharge from daily average discharge
+
+```{r, echo=FALSE, message=FALSE}
+write.csv(daypYr,
+    "./RIDaysPYear.csv",na="NA",row.names=TRUE)
+
+RIFullFlowMeanDailytoYr$x <- RIFullFlowMeanDailytoYr$x /daypYr
+RIFullFlowMeanDailytoYr
+
+write.csv(RIFullFlowMeanDailytoYr,
+    "./meanYearlyDischargeFromMeanDaily.csv",na="NA",row.names=TRUE)
+
+
+
+
+```
+
+find days per month
+
+```{r, echo=FALSE, message=FALSE}
+
+
+RIFullFlowMonthly<- transform(RIFullFlowDaily, Month=format(as.POSIXct(Day), "%Y-%m"))
+
+# startDate <- as.POSIXct("2008-05-30") 
+# endDate <- as.POSIXct("2009-12-01")
+# 
+# RIFullFlowMonthly2<- RIFullFlowMonthly[as.POSIXct(RIFullFlowMonthly$DateTime) >  startDate 
+#                         & as.POSIXct(RIFullFlowMonthly$DateTime) < endDate,]
+
+daypMonth <- with(RIFullFlowMonthly, tapply(num, Month, sum))
+daypMonth
+
+write.csv(daypMonth,
+    "./RIDaysPMonth.csv",na="NA",,row.names=TRUE)
+
+RIFullFlowMonthly<- RIFullFlowMonthly %>%
+  group_by(Month) %>% 
+  mutate(cfsps_month_mean=mean(cfsps_day_mean,na.rm=TRUE))
+
+months<- list(RIFullFlowMonthly$Month)
+RIFullFlowMonthly<- aggregate(RIFullFlowMonthly,by=months, FUN=head, 1)
+
+write.csv(RIFullFlowMonthly,
+    "./RIMonthlyExport.csv",na="NA",,row.names=FALSE)
+
+
+
+```
+
+Monthly mean CFS Stats
+1st is SD
+
+```{r, echo=FALSE, message=FALSE}
+
+sd(RIFullFlowMonthly$cfsps_month_mean)
+summary(RIFullFlowMonthly$cfsps_month_mean)

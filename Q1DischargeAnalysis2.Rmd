@@ -1,0 +1,292 @@
+---
+title: "discharge for Bisley and Puente Roto vs Precip at Bisley lower tower."
+author: "Miguel Leon"
+date: "Thursday, April 2nd, 2015"
+output:
+  html_document:
+    fig_width: 12
+---
+
+discharge for Bisley and Puente Roto vs Precip at Bisley lower tower
+
+```{r, echo=FALSE, message=FALSE}
+
+# Load the project
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge"# library(devtools)
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+library(ProjectTemplate)
+#source(paste0(project_directory,"/","lib/loadProject.R"))
+setwd(project_directory)
+source("C:/Users/leonmi/Google Drive/loadest/composite_client/src/scripts/reportHelpers.R")
+
+# Redefine project_directory now that loadProjectFromCache has cleared the old variable
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" 
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+
+# Set options for producing the html filee
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, warn=FALSE)
+options(warn=-1)
+
+# Load libraries we'll use, suppressing messages via message=FALSE option to knitr chunk
+library(MASS)
+library(rloadest)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+
+#Bis Q Day 87 to 10NoFlowRemoved.csv
+
+newnames <- as.vector(t(read.csv(
+  "Bis Q Day 87 to 10NoFlowRemoved.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1FullFlow <- read.csv(
+  "Bis Q Day 87 to 10NoFlowRemoved.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=2,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "Quebreda (Q1) Daily 1-9-10 to4-11-11.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1wDis <- read.csv(
+  "Quebreda (Q1) Daily 1-9-10 to4-11-11.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=2,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "Q1D_7-26-12toCurrent_0.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1 <- read.csv(
+  "Q1D_7-26-12toCurrent_0.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=3,stringsAsFactors=FALSE)
+
+          
+            
+
+newnames <- as.vector(t(read.csv(
+  "PrecipAndFlowBisley.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+PrecipAndQ <- read.csv(
+  "PrecipAndFlowBisley.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)     
+
+PrecipAndQ$Date <- as.POSIXct(strptime(paste(PrecipAndQ$Date,"12:00"),format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+Q1FullFlow$Date <- as.POSIXct(strptime(paste(Q1FullFlow$Date,"12:00"),format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+
+# 
+# 
+# ggplot() + ggtitle("Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=precipmmd,  color="precip per day mm/day "), alpha=0.5)
+# 
+# 
+# ggplot() + ggtitle("Q1 Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q1md ), color="sienna2")
+# 
+# 
+# ggplot() + ggtitle("Q2 Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q2md ), colour="maroon")
+# 
+# 
+# ggplot() + ggtitle("Q3 Log Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q3md ), color="chartreuse4")
+
+ggplot() + ggtitle("Q1 Log Discharge mm/day") + 
+  geom_line(data= Q1FullFlow, aes(x=Date, y=log(Q1md) ), color="sienna2")
+
+
+```
+Here we can clearly see the change in variability in Q1, the range of values seems to shrink. 
+
+Let's look at log discharge for Q2 and Q3. 
+
+```{r, echo=FALSE}
+
+ggplot() + ggtitle("Q1 vs Q2 Log Discharge mm/day") + 
+  geom_point(data= Q1FullFlow, aes(x=log(Q2md), y=log(Q1md) ), color='maroon')
+
+
+ggplot() + ggtitle("Q2 vs Q3 Log Discharge mm/day") + 
+  geom_point(data= Q1FullFlow, aes(x=log(Q2md), y=log(Q3md) ), color='maroon')
+
+ggplot() + ggtitle("Q2 Log Discharge mm/day") + 
+  geom_line(data= Q1FullFlow, aes(x=Date, y=log(Q2md) ), color='maroon')
+
+
+ggplot() + ggtitle("Q3 Log Discharge mm/day") + 
+  geom_line(data= Q1FullFlow, aes(x=Date, y=log(Q3md) ), color="chartreuse4")
+
+
+ggplot() + ggtitle("Puente Roto Log Discharge mm/day") + 
+  geom_line(data= Q1FullFlow, aes(x=Date, y=log(PRmd) ), color="burlywood3")
+
+
+# 
+# ggplot() + ggtitle("Log Precip mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=log(precipmmd) , color="Log precip per day mm/day"))
+
+```
+Q2 might seem to have the opposite problem, but given the increase in precip in the analysis further below this is probably ok. 
+
+
+The below plot Discharge Vs precip for the three gauges. 
+```{r, echo=FALSE}
+
+
+
+ggplot() + ggtitle("Q1 discharge mm/day Vs Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y= Q1md), color="sienna2")
+
+ggplot() + ggtitle("Q2 Log discharge mm/day Vs Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y= Q2md), color="maroon")
+
+ggplot() + ggtitle("Q3 discharge mm/day VsPrecip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y=Q3md ), color="chartreuse4")
+
+ggplot() + ggtitle("Puente Roto discharge mm/day VsPrecip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y=PRmd ), color="burlywood3")
+```
+This is hard to see let's limit the x y range to take some of the outliers out of view. 
+
+```{r, echo=FALSE}
+ggplot() + ggtitle("Q1 discharge mm/day Vs Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y= Q1md), color="sienna2")+ylim(0,100)+xlim(0,150)
+
+ggplot() + ggtitle("Q2 Log discharge mm/day Vs Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y= Q2md), color="maroon")+ylim(0,100)+xlim(0,150)
+
+ggplot() + ggtitle("Q3 discharge mm/day VsPrecip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y=Q3md ), color="chartreuse4")+ylim(0,100)+xlim(0,150)
+
+ggplot() + ggtitle("Puente Roto discharge mm/day VsPrecip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=precipmmd, y=PRmd ), color="burlywood3")+ylim(0,100)+xlim(0,150)
+```
+Maybe looking at log v log might help? 
+
+```{r, echo=FALSE}
+
+ggplot() + ggtitle("Q1 Log discharge mm/day Vs Log Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=log(precipmmd), y= log(Q1md)), color="sienna2")
+
+ggplot() + ggtitle("Q2 Log discharge mm/day Vs Log Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=log(precipmmd), y= log(Q2md)), color="maroon")
+
+ggplot() + ggtitle("Q3 Log discharge mm/day Vs Log Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=log(precipmmd), y=log(Q3md) ), color="chartreuse4")
+
+ggplot() + ggtitle("Puente Roto Log discharge mm/day Vs Log Precip mm/day") + 
+  geom_point(data= PrecipAndQ, aes(x=log(precipmmd), y=log(PRmd) ), color="burlywood3")
+
+  
+startDate <- as.POSIXct("2005-06-24") 
+#endDate <- as.POSIXct("2012-01-01")
+
+PrecipAndQ<- transform(PrecipAndQ, YR=as.numeric(format(Date, "%Y")))
+
+
+PrecipAndQNewer <- PrecipAndQ[PrecipAndQ$Date >=  startDate ,]
+PrecipAndQOlder <- PrecipAndQ[PrecipAndQ$Date <  startDate ,]
+```
+Use Q2 and Precip to predict Q1 
+
+```{r, echo=FALSE}
+
+PrecipAndQOlder$Q2mdlog <- log(PrecipAndQOlder$Q2md)
+PrecipAndQOlder <- PrecipAndQOlder[!is.na(PrecipAndQOlder$Q2mdlog),]
+
+PrecipAndQOlder$Q1mdlog <- log(PrecipAndQOlder$Q1md)
+PrecipAndQOlder <- PrecipAndQOlder[!is.na(PrecipAndQOlder$Q1mdlog),]
+
+
+Q1Model<- lm( Q1md~ Q2md+Q2mdlog+ precipmmd+log(precipmmd), PrecipAndQOlder)
+summary(Q1Model)
+Q1Predicted <- predict(Q1Model,PrecipAndQNewer,se.fit=TRUE)
+
+PrecipAndQNewer$fitQ1 <- Q1Predicted$fit
+PrecipAndQNewer$Q1se <-  Q1Predicted$se.fit
+
+ggplot() + ggtitle("Predicted Q1 Log Discharge mm/day") + 
+  geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(fitQ1) , color="predicted "))+
+   #geom_errorbar(data= PrecipAndQNewer, aes(ymin=fitQ1-log(Q1se), ymax=fitQ1+log(Q1se), x=Date), width=.1) +
+  geom_line(data= PrecipAndQOlder, aes(x=Date, y=log(Q1md) , color="Old recorded data that should be good"))
+
+
+ggplot() + ggtitle("Predicted Q1 Discharge mm/day") + 
+  geom_point(data= PrecipAndQNewer, aes(x=Date, y=fitQ1 , color="predicted "))+
+  # geom_errorbar(data= PrecipAndQNewer, aes(ymin=fitQ1-(2*Q1se), ymax=fitQ1+(2*Q1se), x=Date), width=.1) +
+  geom_point(data= PrecipAndQOlder, aes(x=Date, y=Q1md , color="Old recorded data that should be good"))
+
+ggplot() + ggtitle(" Q1 Log vs Q2 Log Discharge mm/day") + 
+  geom_point(data= PrecipAndQNewer, aes(x=log(Q2md), y=log(fitQ1) , color="predicted "))+
+  geom_point(data= PrecipAndQOlder, aes(x=log(Q2md), y=log(Q1md) , color="Old recorded data that should be good"))
+
+ggplot() + ggtitle("Predicted Q1 Log Discharge mm/day vs recorded values") + 
+  geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(fitQ1) , color="predicted "))+
+  geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(Q1md) , color="recorded data we want to replace"), alpha=.5)
+
+```
+Q1 SD then Summary of precipitation at bisley lower tower in mm/day before 2005-06-24
+
+```{r, echo=FALSE}
+
+#compute means and sds 
+
+sdPrecipOlder<- sd(PrecipAndQOlder$precipmmd,na.rm=TRUE)
+sdPrecipOlder
+summary(PrecipAndQOlder$precipmmd)
+```
+Q1 SD then Summary of precipitation at bisley lower tower in mm/day after 2005-06-24
+
+```{r, echo=FALSE}
+sdPrecipNewer<- sd(PrecipAndQNewer$precipmmd,na.rm=TRUE)
+sdPrecipNewer
+summary(PrecipAndQNewer$precipmmd)
+
+```
+Precip increases after 2005-06-24 and the standard deviation for precip also increases.
+
+Q1 SD then Summary of discharge at Q1 in mm/day before 2005-06-24
+
+```{r, echo=FALSE}
+sdQ1mdOlder<- sd(PrecipAndQOlder$Q1md,na.rm=TRUE)
+sdQ1mdOlder
+summary(PrecipAndQOlder$Q1md,na.rm=TRUE)
+
+```
+Q1 SD then Summary of discharge at Q1 in mm/day after 2005-06-24
+
+```{r, echo=FALSE}
+sdQ1mdNewer<- sd(PrecipAndQNewer$Q1md,na.rm=TRUE)
+sdQ1mdNewer
+summary(PrecipAndQNewer$Q1md,na.rm=TRUE)
+# 
+# ggplot() + ggtitle("Log Discharge CFS after 2006-09-01") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(Q1md) , color="Mean Daily Discharge mm/day"))
+# 
+# ggplot() + ggtitle("Discharge CFS after 2006-09-01") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=precipmmd,  color=" precip per day mm/day "), alpha=0.5)+ylim(0,175)
+# 
+# 
+# ggplot() + ggtitle("Log Discharge CFS before 2006-09-01") + 
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=log(Q1md) , color="Mean Daily Discharge mm/day"))
+# 
+# 
+# ggplot() + ggtitle("Discharge CFS before 2006-09-01") + 
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=precipmmd,  color=" precip per day mm/day "), alpha=0.5) +ylim(0,175)
+
+```
+ The standard deviation of discharge decreases after  2005-06-24, while it had increased for precip, this is the problem we are seeing in the very first graph.  
+
+```{r, echo=FALSE}
+
+#totalCF15m
+
+
+#totalCF15m2Curr
+

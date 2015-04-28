@@ -1,0 +1,294 @@
+---
+title: "discharge for Bisley Q1."
+author: "Miguel Leon"
+date: "Tuesday, April 7th, 2015"
+output:
+  html_document:
+    fig_width: 12
+---
+
+discharge for Bisley Q1
+
+```{r, echo=FALSE, message=FALSE}
+
+# Load the project
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge"# library(devtools)
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+library(ProjectTemplate)
+#source(paste0(project_directory,"/","lib/loadProject.R"))
+setwd(project_directory)
+source("C:/Users/leonmi/Google Drive/loadest/composite_client/src/scripts/reportHelpers.R")
+
+# Redefine project_directory now that loadProjectFromCache has cleared the old variable
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" 
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+
+# Set options for producing the html filee
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, warn=FALSE)
+options(warn=-1)
+
+# Load libraries we'll use, suppressing messages via message=FALSE option to knitr chunk
+library(MASS)
+library(rloadest)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+
+#Bis Q Day 87 to 10NoFlowRemoved.csv
+
+newnames <- as.vector(t(read.csv(
+  "Bis Q Day 87 to 10NoFlowRemoved.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1FullFlow <- read.csv(
+  "Bis Q Day 87 to 10NoFlowRemoved.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=2,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "Quebreda (Q1) Daily 1-9-10 to4-11-11.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1wDis <- read.csv(
+  "Quebreda (Q1) Daily 1-9-10 to4-11-11.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=2,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "Q1D_7-26-12toCurrent_0.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q1 <- read.csv(
+  "Q1D_7-26-12toCurrent_0.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=3,stringsAsFactors=FALSE)
+
+model<- lm( Discharge~ Level+Level^2+exp(Level)+log(Level), Q1wDis)
+            
+ #Q1_current 1-8-10 to 4-11-11_0.csv           
+
+newnames <- as.vector(t(read.csv(
+  "Q12014.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q12014 <- read.csv(
+  "Q12014.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+Q12014$mm.day <- as.numeric(Q12014$mm.day)
+
+
+newnames <- as.vector(t(read.csv(
+  "Q1_current 1-8-10 to 4-11-11_0.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+Q12010 <- read.csv(
+  "Q1_current 1-8-10 to 4-11-11_0.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+Q12010$mm.day <- as.numeric(Q12010$NA.)
+
+newnames <- as.vector(t(read.csv(
+  "PrecipAndFlowBisley.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+PrecipAndQ <- read.csv(
+  "PrecipAndFlowBisley.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)     
+
+PrecipAndQ$Date <- as.POSIXct(strptime(paste(PrecipAndQ$Date,"12:00"),format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+Q1FullFlow$Date <- as.POSIXct(strptime(paste(Q1FullFlow$Date,"12:00"),format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+Q12010$Date <- as.POSIXct(strptime(Q12010$Date,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+Q12014$Date <- as.POSIXct(strptime(Q12014$TS,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+  Q12014 <-Q12014[order(Q12014$Date),]
+
+  Q12010 <-Q12010[order(Q12010$Date),]
+
+
+Q12014$Day<- as.POSIXct(strptime(Q12014$TS,format="%m/%d/%Y",tz="America/Puerto_Rico"))
+
+#FILL IN DISCHARGE MEAN FOR ALL TIMES 
+Q12014<- Q12014 %>%
+  group_by(Day) %>% 
+  mutate(DISCHARGE_MEAN=mean(mm.day,na.rm=TRUE))
+days<- list(Q12014$Day)
+Q12014day<- aggregate(Q12014,by=days, FUN=head, 1)
+Q12014day<- transform(Q12014day, YR=as.numeric(format(Date, "%Y")))
+years<- list(Q12014day$YR)
+Q12014yr<- aggregate(Q12014day$DISCHARGE_MEAN,by=years, FUN=sum)
+
+# 
+# 
+# ggplot() + ggtitle("Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=precipmmd,  color="precip per day mm/day "), alpha=0.5)
+# 
+# 
+# ggplot() + ggtitle("Q1 Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q1md ), color="sienna2")
+# 
+# 
+# ggplot() + ggtitle("Q2 Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q2md ), colour="maroon")
+# 
+# 
+# ggplot() + ggtitle("Q3 Log Discharge mm/day") + 
+#   geom_line(data= PrecipAndQ, aes(x=Date, y=Q3md ), color="chartreuse4")
+
+
+
+startDate <- as.POSIXct("2009-01-01") 
+endDate <- as.POSIXct("2010-01-01")
+
+PrecipAndQ<- transform(PrecipAndQ, YR=as.numeric(format(Date, "%Y")))
+Q12014$mm.day <- as.numeric(Q12014$mm.day)
+
+
+PrecipAndQNewer <- PrecipAndQ[PrecipAndQ$Date >=  startDate & PrecipAndQ$Date <  endDate,]
+
+
+years<- list(PrecipAndQ$YR)
+
+Q1yrmmday<- aggregate(PrecipAndQ$Q1md,by=years, FUN=sum, na.rm=TRUE)
+Toweryrmmday<- aggregate(PrecipAndQ$precipmmd,by=years, FUN=sum, na.rm=TRUE)
+
+startDate <- as.POSIXct("2005-06-24")
+PrecipAndQOlder <- PrecipAndQ[PrecipAndQ$Date <  startDate ,]
+
+
+
+Q12010 <- Q12010[Q12010$Date <  endDate ,]
+
+sdQ1mdOlder<- sd(PrecipAndQOlder$Q1md,na.rm=TRUE)
+sdQ1mdNewer<- sd(PrecipAndQNewer$Q1md,na.rm=TRUE)
+# PrecipAndQNewer$upperBound <- PrecipAndQNewer$Q1md + 2*sdQ1mdNewer
+# PrecipAndQNewer$lowerBound <- PrecipAndQNewer$Q1md - 2*sdQ1mdNewer
+# PrecipAndQOlder$upperBound <- PrecipAndQOlder$Q1md + 2*sdQ1mdOlder
+# PrecipAndQOlder$lowerBound <- PrecipAndQOlder$Q1md - 2*sdQ1mdOlder
+
+startDate <- as.POSIXct("2014-04-01")
+endDate <- as.POSIXct("2014-07-01")
+Q12014day <- Q12014day[Q12014day$Day >  startDate & Q12014day$Day <  endDate,]
+
+ggplot() + ggtitle("Q1 daily average Wier worksheet derived Discharge mm/day") + 
+  geom_line(data= Q12014day, aes(x=Day, y=DISCHARGE_MEAN), color="chartreuse4")
+
+# 
+# 
+# ggplot() + ggtitle("Q1 Daily Discharge mm/day") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=Q1md ), color="sienna2")
+# 
+# ggplot() + ggtitle("Q1 Daily Log Discharge mm/day") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(Q1md) ), color="sienna2")
+# 
+# ggplot() + ggtitle("Q1 5 minute 2010 Discharge mm/day") + 
+#   geom_line(data= Q12010, aes(x=Date, y=mm.day), color="maroon")
+# 
+# ggplot() + ggtitle("Q1 5 minute 2010 Log Discharge mm/day") + 
+# #   geom_line(data= Q12010, aes(x=Date, y=log(mm.day) ), color="maroon")
+# 
+# ggplot() + ggtitle("Q1 5 minute Wier worksheet derived Discharge mm/day") + 
+#   geom_line(data= Q12014, aes(x=Date, y=mm.day), color="chartreuse4")
+# 
+# 
+# ggplot() + ggtitle("Q1 5 minute Wier worksheet derived Log Discharge mm/day") + 
+#   geom_line(data= Q12014, aes(x=Date, y=log(mm.day) ), color="chartreuse4")
+
+```
+Precip per year
+
+```{r, echo=FALSE}
+Toweryrmmday
+
+```
+mm discharge per year
+
+```{r, echo=FALSE}
+Q1yrmmday
+```
+mm discharge per year with weir calculation. 
+
+```{r, echo=FALSE}
+Q12014yr
+
+#day per year precip and Puente Roto 
+PrecipAndQ$num <- 1
+PrecipAndQ<- transform(PrecipAndQ, YR=as.numeric(format(Date, "%Y")))
+PrecipAndQ<- PrecipAndQ[!is.na(PrecipAndQ$PRmd),]
+daypYr <- with(PrecipAndQ, tapply(num, YR, sum))
+daypYr
+
+Q1FullFlow$num <- 1
+Q1FullFlow<- transform(Q1FullFlow, YR=as.numeric(format(Date, "%Y")))
+Q1FullFlow<- transform(Q1FullFlow, MonthYR=as.numeric(format(Date, "%Y%m")))
+PrecipAndQ<- Q1FullFlow[!is.na(Q1FullFlow$PRmd),]
+
+# daypYr <- with(Q1FullFlow, tapply(num, YR, sum))
+# daypYr
+# daypMth <- with(Q1FullFlow, tapply(num, MonthYR, sum))
+# daypMth$dayMth <-cbind(colnames(daypMth), daypMth)
+
+# # 
+# ggplot() + ggtitle("day per month") + 
+#   geom_line(data= daypMth,  aes(x=x, y=y ),color="sienna2")
+
+
+
+
+
+# 
+# ```
+# Q1 SD then Summary of precipitation at bisley lower tower in mm/day before 2005-06-24
+# 
+# ```{r, echo=FALSE}
+# 
+# #compute means and sds 
+# 
+# sdPrecipOlder<- sd(PrecipAndQOlder$precipmmd,na.rm=TRUE)
+# sdPrecipOlder
+# summary(PrecipAndQOlder$precipmmd)
+# ```
+# Q1 SD then Summary of precipitation at bisley lower tower in mm/day after 2005-06-24
+# 
+# ```{r, echo=FALSE}
+# sdPrecipNewer<- sd(PrecipAndQNewer$precipmmd,na.rm=TRUE)
+# sdPrecipNewer
+# summary(PrecipAndQNewer$precipmmd)
+# 
+# ```
+# Precip increases after 2005-06-24 and the standard deviation for precip also increases.
+# 
+# Q1 SD then Summary of discharge at Q1 in mm/day before 2005-06-24
+# 
+# ```{r, echo=FALSE}
+# 
+# sdQ1mdOlder
+# summary(PrecipAndQOlder$Q1md,na.rm=TRUE)
+# 
+# ```
+# Q1 SD then Summary of discharge at Q1 in mm/day after 2005-06-24
+# 
+# ```{r, echo=FALSE}
+# 
+# sdQ1mdNewer
+# summary(PrecipAndQNewer$Q1md,na.rm=TRUE)
+# 
+# ggplot() + ggtitle("Log Discharge CFS after 2006-09-01") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=log(Q1md) , color="Mean Daily Discharge mm/day"))
+# 
+# ggplot() + ggtitle("Discharge CFS after 2006-09-01") + 
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQNewer, aes(x=Date, y=precipmmd,  color=" precip per day mm/day "), alpha=0.5)+ylim(0,175)
+# 
+# 
+# ggplot() + ggtitle("Log Discharge CFS before 2006-09-01") + 
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=log(Q1md) , color="Mean Daily Discharge mm/day"))
+# 
+# 
+# ggplot() + ggtitle("Discharge CFS before 2006-09-01") + 
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=Q1md , color="Mean Daily Discharge mm/day")) +
+#   geom_line(data= PrecipAndQOlder, aes(x=Date, y=precipmmd,  color=" precip per day mm/day "), alpha=0.5) +ylim(0,175)
+# 
+# ```
+#  The standard deviation of discharge decreases after  2005-06-24, while it had increased for precip, this is the problem we are seeing in the graph.  
