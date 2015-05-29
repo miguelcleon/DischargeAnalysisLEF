@@ -1,0 +1,301 @@
+---
+title: "MPR filtered discharge"
+author: "Miguel Leon"
+date: "Monday, April 21, 2015"
+output:
+  html_document:
+    fig_width: 10
+---
+
+
+```{r, echo=FALSE, message=FALSE}
+
+
+# Load the project
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" # library(devtools)
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+library(ProjectTemplate)
+#source(paste0(project_directory,"/","lib/loadProject.R"))
+setwd(project_directory)
+#source("C:/Users/leonmi/Google Drive/loadest/composite_client/src/scripts/reportHelpers.R")
+
+# Redefine project_directory now that loadProjectFromCache has cleared the old variable
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" 
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+
+# Set options for producing the html filee
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, warn=FALSE)
+options(warn=-1)
+
+# Load libraries we'll use, suppressing messages via message=FALSE option to knitr chunk
+library(MASS)
+library(rloadest)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+#MPRDischargeFrom1999
+insertRow <- function(existingDF, newrow, r) {
+  existingDF[seq(r+1,nrow(existingDF)+1),] <- existingDF[seq(r,nrow(existingDF)),]
+  existingDF[r,] <- newrow
+  existingDF
+}
+#MPRDailyExport_KC.csv
+# 
+# newnames <- as.vector(t(read.csv(
+#   "MPRDailyExport_KC.csv",
+#   sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+# 
+# MPRDateFormat <- read.csv(
+#   "MPRDailyExport_KC.csv",
+#   sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+# MPRDateFormat$Date <- as.POSIXct(strptime(MPRDateFormat$Day ,format="%m/%d/%Y",tz="America/Puerto_Rico"))
+# write.csv(MPRDateFormat,
+#     "./MPRDateFormat.csv",na="NA",,row.names=TRUE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/MPRDischarge.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+MPRFullFlow <- read.csv(
+  "./data/MPRDischarge.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/MPRDischargeFrom1997.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+MPRFrom1997 <- read.csv(
+  "./data/MPRDischargeFrom1997.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/MPRDischargeFrom2006.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+MPRFrom2006 <- read.csv(
+  "./data/MPRDischargeFrom2006.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/DailyDischargeUSGSAll.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+USGSDischarge <- read.csv(
+  "./data/DailyDischargeUSGSAll.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+
+newnames <- as.vector(t(read.csv(
+  "MPRForSummaries4.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+MPRForSummaries <- read.csv(
+  "MPRForSummaries4.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+
+
+
+
+USGSDischarge$Date <- as.POSIXct(strptime(USGSDischarge$Date  ,format="%m/%d/%Y"))
+
+MPRFullFlow$DateTime <- as.POSIXct(strptime(MPRFullFlow$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+
+MPRFrom1997$DateTime <- as.POSIXct(strptime(MPRFrom1997$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+MPRFrom2006$DateTime <- as.POSIXct(strptime(MPRFrom2006$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+MPRFullFlow<- merge(MPRFullFlow,MPRFrom1997,all=TRUE)
+MPRFullFlow<- merge(MPRFullFlow,MPRFrom2006,all=TRUE)
+#remove NA values 
+MPRFullFlow <- MPRFullFlow[!is.na(MPRFullFlow$USGS_cfps),]
+MPRFullFlow<- MPRFullFlow[order(MPRFullFlow$DateTime),]
+  
+
+MPRFullFlow$num <- 1
+min15pyr <- with(MPRFullFlow, tapply(num, YEAR, sum))
+
+```
+
+15 minute (or 10 min) records per year
+
+```{r, echo=FALSE, message=FALSE}
+
+min15pyr
+
+dt <- as.POSIXlt("1986-01-01 00:00:00")
+dt <- dt -900
+newrow <- list(1986,1,as.POSIXct(strptime(dt, format="%Y-%m-%d",tz="America/Puerto_Rico")),NA,NA,1986,1) #%H:%M:%S
+
+#,origin = "1900-01-01"
+#"1999-10-01 00:00:00","%Y-%m-%d %H:%M:%S",tz="America/Puerto_Rico"
+#USGS_Sonadora_IDA2 <- rbind(USGS_Sonadora_IDA, newrow)
+MPRFullFlow<- insertRow(MPRFullFlow, newrow, 1)
+
+MPRFullFlow$diffsec <- c(NA, tail(MPRFullFlow$DateTime, -1) - head(MPRFullFlow$DateTime, -1))
+MPRFullFlow$diffMin <- MPRFullFlow$diffsec / 60
+
+#MPRFullFlow<-MPRFullFlow[!MPRFullFlow$diffMin ==10,]
+# 
+#   ggplot() + ggtitle("MPR log Discharge CFS") + 
+#     geom_point(data= MPR10, aes(x=DateTime, y=log(USGS_cfps) , color="Mean Daily Discharge"))
+
+#MPRFullFlow<-MPRFullFlow[!MPRFullFlow$diffMin ==10,]
+#MPRFullFlow<-MPRFullFlow[!MPRFullFlow$diffMin ==5,]
+
+MPRFullFlow$diffsec[MPRFullFlow$diffsec > 900] <- 900
+MPRFullFlow$diffMin[MPRFullFlow$diffMin > 15] <- 15
+
+#some of these are 5 minute not 15 minute need to make sure the cfps for each record represents the right amount of time. 
+totalCF15mCurr<- with(MPRFullFlow, tapply(((USGS_cfps*diffsec)), YEAR, sum))
+totalCF15m2Curr <- totalCF15mCurr /with(MPRFullFlow, tapply(((diffsec)), YEAR, sum))
+
+#totalCF15m2Curr
+# write.csv(totalCF15m2Curr,
+#     "./MPRMeanAnnualDischarge.csv",na="NA",,row.names=TRUE)
+
+#agggregate by day 
+
+
+#calculate mean daily discharge
+
+
+
+MPRFullFlow$Day<- format(MPRFullFlow$DateTime, "%m/%d/%Y") 
+
+#FILL IN DISCHARGE MEAN FOR ALL TIMES 
+MPRFullFlow<- MPRFullFlow %>%
+  group_by(Day) %>% 
+  mutate(cfsps_day_mean=mean(USGS_cfps,na.rm=TRUE))
+days<- list(MPRFullFlow$Day)
+MPRFullFlowDaily<- aggregate(MPRFullFlow,by=days, FUN=head, 1)
+
+#write daily discharge to a file 
+# write.csv(MPRFullFlowDaily,
+#     "./MPRDailyExport.csv",na="NA",,row.names=FALSE)
+
+
+```
+
+compare daily flows USGS vs Jody's 
+
+```{r, echo=FALSE, message=FALSE}
+
+startDate <- as.POSIXct("1986-01-01") 
+endDate <- as.POSIXct("2014-11-23")
+
+MPRFullFlow2<- MPRFullFlow[MPRFullFlow$DateTime >  startDate 
+                        & MPRFullFlow$DateTime < endDate,]
+
+MPRFullFlowDaily2<- MPRFullFlowDaily[MPRFullFlowDaily$DateTime >  startDate 
+                        & MPRFullFlowDaily$DateTime < endDate,]
+
+USGSDischarge2<- USGSDischarge[USGSDischarge$Date >  startDate 
+                        & USGSDischarge$Date < endDate,]
+MPRFullFlowDaily2$Date <- as.POSIXct(MPRFullFlowDaily2$Day,format="%m/%d/%Y")
+
+
+#   ggplot() + ggtitle("discharge") + 
+#    geom_line(data=MPRFullFlowDaily2 , aes(x=Date, y=cfsps_day_mean , color="Mean Daily Discharge calculated from Jody"),alpha=.5)+
+#   geom_line(data=USGSDischarge2 , aes(x=Date, y=cfs , color="Mean Daily Discharge USGS"),alpha=.5)
+
+
+mergeflow<-merge(USGSDischarge2,MPRFullFlowDaily2,  by="Date") #, incomparables
+
+# 
+# mergeflow<- data.frame(USGSMeanDis=USGSDischarge2$cfs,JodyMeanDis=MPRFullFlowDaily2$cfsps_day_mean, 
+#                        Date=MPRFullFlowDaily2[match(USGSDischarge2$Date,MPRFullFlowDaily2$Date),])
+
+mergeflow<- mergeflow[order(as.Date(mergeflow$Date, format="%d/%m/%Y")),]
+
+# 
+#   ggplot() + ggtitle("merged discharge") + 
+#        geom_line(data= mergeflow, aes(x=Date, y=cfs , color="Mean Daily Discharge USGS"))+
+#    geom_line(data=mergeflow , aes(x=DateTime, y=cfsps_day_mean , color="Mean Daily Discharge"),alpha=.5)
+
+#find values from jody and USGS which are close together. 
+sdUSGS <- sd(mergeflow$cfs)
+#sd is too large 
+mergeflow$cfsmprUSGS<-mergeflow$cfs
+mergeflow$cfsmprJody<- mergeflow$cfsps_day_mean
+mergeflow$DischargeDiff <- mergeflow$cfsmprUSGS / mergeflow$cfsmprJody
+```
+
+number of daily mean values  
+
+```{r, echo=FALSE, message=FALSE}
+
+nrow(mergeflow)
+
+#mergeflowClose <- mergeflow[mergeflow$DischargeDiff>=.95 & mergeflow$DischargeDiff<=1.05,]
+mergeflowCloseDaily<- mergeflow[c("Date","cfsmprUSGS","cfsmprJody","DischargeDiff")]
+```
+
+number of daily mean values where the mean daily discharge from Jody's 15 min record are within 5% of the reported USGS values  
+
+```{r, echo=FALSE, message=FALSE}
+
+nrow(mergeflowCloseDaily)
+
+#find 15 minute records which match the selected daily records. 
+```
+
+number of 15 min records within the date range  2006-01-01 to 2014-11-23
+
+
+```{r, echo=FALSE, message=FALSE}
+nrow(MPRFullFlow2)
+
+MPRFullFlow2$Date<- as.POSIXct(MPRFullFlow2$Day,format="%m/%d/%Y")
+
+#MPRFullFlow2 <- MPRFullFlow[MPRFullFlow$Date == mergeflowClose$Date,]
+MPRFullFlow2<-merge(MPRFullFlow2,mergeflowCloseDaily,  by="Date")
+MPRFullFlow2<- MPRFullFlow2[order(MPRFullFlow2$DateTime),]
+
+MPRFullFlow2$cfsUSGS_mean_daily<-MPRFullFlow2$cfsmprUSGS
+MPRFullFlow2$cfsFromJody_mean_daily<-MPRFullFlow2$cfsmprJody
+
+MPRFullFlow2<- MPRFullFlow2[c("Date", "DateTime","USGS_cfps","USGS_STAGE","cfsUSGS_mean_daily","cfsFromJody_mean_daily")]
+
+```
+
+number of 15 min records matching dates selected where the computed mean daily discharge records are within 5% 
+
+
+```{r, echo=FALSE, message=FALSE}
+nrow(MPRFullFlow2)
+
+
+#write.csv(MPRFullFlow2,
+ #    "./CloseDischarge15minFromJody.csv",na="NA",,row.names=TRUE)
+
+#write.csv(mergeflowClose,
+#     "./CloseDischargeUSGSJody.csv",na="NA",,row.names=TRUE)
+
+t<- MPRFullFlow[MPRFullFlow$Day =="12/07/2010",]
+MPRForSummaries$DateTime <- as.character(MPRForSummaries$Combined_Date)
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+MPRForSummaries$DateTime <-trim(MPRForSummaries$DateTime)
+MPRForSummaries$DateTime <- as.POSIXct(strptime(MPRForSummaries$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico")) 
+MPRForSummaries$Date<- format(MPRForSummaries$DateTime, "%m/%d/%Y") 
+MPRForSummaries$Date<- as.POSIXct(MPRForSummaries$Date,format="%m/%d/%Y")
+MPRForSummaries<- MPRForSummaries[order(MPRForSummaries$DateTime),]
+
+
+
+MPRForSummariesMerged<- merge(MPRForSummaries,MPRFullFlow2,by="DateTime")
+MPRForSummariesMerged2<- merge(MPRForSummaries,MPRFullFlow2,by="Date")
+#MPRForSummariesMerged<- merge(MPRForSummariesMerged,mergeflowCloseDaily,by="Date")
+MPRForSummariesMerged<- MPRForSummariesMerged[order(MPRForSummariesMerged$DateTime),]
+MPRForSummariesMerged2<- MPRForSummariesMerged2[order(MPRForSummariesMerged2$DateTime.y),]
+
+MPRForSummariesMerged<- MPRForSummariesMerged[c("Date", "DateTime","Sample_Date","cfsmprUSGS", "cfsmprJody", "USGS_cfps")]
+
+write.csv(MPRForSummariesMerged2,
+     "./MPRExport4-full.csv",na="NA",,row.names=TRUE)
+#mergeflowCloseDaily cfsmprUSGS and cfsmprJody
+#MPRFullFlow #USGS_cfps Jody 15 min cfps 
+

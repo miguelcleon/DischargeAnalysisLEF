@@ -1,0 +1,317 @@
+---
+title: "MPR filtered discharge"
+author: "Miguel Leon"
+date: "Monday, April 21, 2015"
+output:
+  html_document:
+    fig_width: 10
+---
+
+
+```{r, echo=FALSE, message=FALSE}
+
+
+# Load the project
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" # library(devtools)
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+library(ProjectTemplate)
+#source(paste0(project_directory,"/","lib/loadProject.R"))
+setwd(project_directory)
+#source("C:/Users/leonmi/Google Drive/loadest/composite_client/src/scripts/reportHelpers.R")
+
+# Redefine project_directory now that loadProjectFromCache has cleared the old variable
+project_directory <- "C:/Users/leonmi/Google Drive/Discharge" 
+#project_directory <- "C:/Users/aa20/Dropbox/Manuscripts/Composite Method/composite_client"
+
+# Set options for producing the html filee
+library(knitr)
+opts_chunk$set(echo=FALSE, message=FALSE, warn=FALSE)
+options(warn=-1)
+
+# Load libraries we'll use, suppressing messages via message=FALSE option to knitr chunk
+library(MASS)
+library(rloadest)
+library(lubridate)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+#RIDischargeFrom1999
+insertRow <- function(existingDF, newrow, r) {
+  existingDF[seq(r+1,nrow(existingDF)+1),] <- existingDF[seq(r,nrow(existingDF)),]
+  existingDF[r,] <- newrow
+  existingDF
+}
+#RIDailyExport_KC.csv
+# 
+# newnames <- as.vector(t(read.csv(
+#   "RIDailyExport_KC.csv",
+#   sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+# 
+# RIDateFormat <- read.csv(
+#   "RIDailyExport_KC.csv",
+#   sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+# RIDateFormat$Date <- as.POSIXct(strptime(RIDateFormat$Day ,format="%m/%d/%Y",tz="America/Puerto_Rico"))
+# write.csv(RIDateFormat,
+#     "./RIDateFormat.csv",na="NA",,row.names=TRUE)
+
+
+newnames <- as.vector(t(read.csv(
+  "./data/RIDischarge.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+RIFullFlow <- read.csv(
+  "./data/RIDischarge.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/RIDischargeFrom2006.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+RiFrom2006 <- read.csv(
+  "./data/RIDischargeFrom2006.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+#DailyDischargeUSGS.csv
+
+newnames <- as.vector(t(read.csv(
+  "./data/DailyDischargeUSGSAll.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+USGSDischarge <- read.csv(
+  "./data/DailyDischargeUSGSAll.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+newnames <- as.vector(t(read.csv(
+  "./data/IcacosSSsamples_USGS.csv",
+  sep=",",header=FALSE,skip=0,nrows=1,stringsAsFactors=FALSE)[1,]))
+
+RIForSummaries <- read.csv(
+  "./data/IcacosSSsamples_USGS.csv",
+  sep=",",header=FALSE,col.names=newnames,skip=1,stringsAsFactors=FALSE)
+
+
+
+#RIForSummaries$DateTime <- as.POSIXct(strptime(RIForSummaries$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+
+USGSDischarge$Date <- as.POSIXct(strptime(USGSDischarge$Date  ,format="%m/%d/%Y"))
+
+RIFullFlow$DateTime <- as.POSIXct(strptime(RIFullFlow$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+
+#RIFrom1997$DateTime <- as.POSIXct(strptime(RIFrom1997$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+RiFrom2006$DateTime <- as.POSIXct(strptime(RiFrom2006$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+
+#RIFullFlow<- merge(RIFullFlow,RiFrom1997,all=TRUE)
+RIFullFlow<- merge(RIFullFlow,RiFrom2006,all=TRUE)
+#remove NA values 
+RIFullFlow <- RIFullFlow[!is.na(RIFullFlow$USGS_cfps),]
+RIFullFlow<- RIFullFlow[order(RIFullFlow$DateTime),]
+  
+
+RIFullFlow$num <- 1
+min15pyr <- with(RIFullFlow, tapply(num, YEAR, sum))
+
+
+
+min15pyr
+
+dt <- as.POSIXlt("1986-10-01 00:15:00")
+dt <- dt -900
+newrow <- list(1986,1,as.POSIXct(strptime(dt, format="%Y-%m-%d",tz="America/Puerto_Rico")),NA,NA,1986,1) #%H:%M:%S
+
+#,origin = "1900-01-01"
+#"1999-10-01 00:00:00","%Y-%m-%d %H:%M:%S",tz="America/Puerto_Rico"
+#USGS_Sonadora_IDA2 <- rbind(USGS_Sonadora_IDA, newrow)
+RIFullFlow<- insertRow(RIFullFlow, newrow, 1)
+
+RIFullFlow$diffsec <- c(NA, tail(RIFullFlow$DateTime, -1) - head(RIFullFlow$DateTime, -1))
+RIFullFlow$diffMin <- RIFullFlow$diffsec / 60
+
+#RIFullFlow<-RIFullFlow[!RIFullFlow$diffMin ==10,]
+# 
+#   ggplot() + ggtitle("RI log Discharge CFS") + 
+#     geom_point(data= RI10, aes(x=DateTime, y=log(USGS_cfps) , color="Mean Daily Discharge"))
+
+#RIFullFlow<-RIFullFlow[!RIFullFlow$diffMin ==10,]
+#RIFullFlow<-RIFullFlow[!RIFullFlow$diffMin ==5,]
+
+RIFullFlow$diffsec[RIFullFlow$diffsec > 900] <- 900
+RIFullFlow$diffMin[RIFullFlow$diffMin > 15] <- 15
+
+RIFullFlow$Time <- format(RIFullFlow$DateTime, "%M:%S") 
+RIFullFlow$TimewH <- format(RIFullFlow$DateTime, "%H:%M:%S") 
+
+RIFullFlow <- RIFullFlow[RIFullFlow$TimewH == "00:05:00" | RIFullFlow$Time == "00:00" | RIFullFlow$Time == "15:00" 
+                           | RIFullFlow$Time == "30:00" | RIFullFlow$Time == "45:00",]
+
+#some of these are 5 minute not 15 minute need to make sure the cfps for each record represents the right amount of time. 
+totalCF15mCurr<- with(RIFullFlow, tapply(((USGS_cfps*diffsec)), YEAR, sum))
+totalCF15m2Curr <- totalCF15mCurr /with(RIFullFlow, tapply(((diffsec)), YEAR, sum))
+
+#totalCF15m2Curr
+# write.csv(totalCF15m2Curr,
+#     "./RIMeanAnnualDischarge.csv",na="NA",,row.names=TRUE)
+
+#agggregate by day 
+
+
+#calculate mean daily discharge
+
+
+
+RIFullFlow$Day<- format(RIFullFlow$DateTime, "%m/%d/%Y") 
+
+#FILL IN DISCHARGE MEAN FOR ALL TIMES 
+RIFullFlow<- RIFullFlow %>%
+  group_by(Day) %>% 
+  mutate(cfsps_day_mean=mean(USGS_cfps,na.rm=TRUE))
+days<- list(RIFullFlow$Day)
+RIFullFlowDaily<- aggregate(RIFullFlow,by=days, FUN=head, 1)
+#MPRFullFlowDaily$daily_record_count<-count(MPRFullFlow, Day)$n
+temp <-count(RIFullFlow, Day)
+temp <- temp[!is.na(temp$Day),]
+RIFullFlowDaily$daily_record_count<-temp$n
+#write daily discharge to a file 
+# write.csv(RIFullFlowDaily,
+#     "./RIDailyExport.csv",na="NA",,row.names=FALSE)
+
+
+
+
+startDate <- as.POSIXct("1983-01-01") 
+endDate <- as.POSIXct("2014-11-23")
+
+RIFullFlow2<- RIFullFlow[RIFullFlow$DateTime >  startDate 
+                        & RIFullFlow$DateTime < endDate,]
+
+RIFullFlowDaily2<- RIFullFlowDaily[RIFullFlowDaily$DateTime >  startDate 
+                        & RIFullFlowDaily$DateTime < endDate,]
+
+USGSDischarge2<- USGSDischarge[USGSDischarge$Date >  startDate 
+                        & USGSDischarge$Date < endDate,]
+RIFullFlowDaily2$Date <- as.POSIXct(RIFullFlowDaily2$Day,format="%m/%d/%Y")
+
+
+#   ggplot() + ggtitle("discharge") + 
+#    geom_line(data=RIFullFlowDaily2 , aes(x=Date, y=cfsps_day_mean , color="Mean Daily Discharge calculated from Jody"),alpha=.5)+
+#   geom_line(data=USGSDischarge2 , aes(x=Date, y=cfs , color="Mean Daily Discharge USGS"),alpha=.5)
+
+
+mergeflow<-merge(USGSDischarge2,RIFullFlowDaily2,  by="Date") #, incomparables
+
+# 
+# mergeflow<- data.frame(USGSMeanDis=USGSDischarge2$cfs,JodyMeanDis=RIFullFlowDaily2$cfsps_day_mean, 
+#                        Date=RIFullFlowDaily2[match(USGSDischarge2$Date,RIFullFlowDaily2$Date),])
+
+mergeflow<- mergeflow[order(as.Date(mergeflow$Date, format="%d/%m/%Y")),]
+
+# 
+#   ggplot() + ggtitle("merged discharge") + 
+#        geom_line(data= mergeflow, aes(x=Date, y=cfs , color="Mean Daily Discharge USGS"))+
+#    geom_line(data=mergeflow , aes(x=DateTime, y=cfsps_day_mean , color="Mean Daily Discharge"),alpha=.5)
+
+#find values from jody and USGS which are close together. 
+sdUSGS <- sd(mergeflow$cfs.1)
+#sd is too large 
+mergeflow$cfsRIUSGS<-mergeflow$cfs.1
+mergeflow$cfsRIJody<- mergeflow$cfsps_day_mean
+mergeflow$DischargeDiff <- mergeflow$cfsRIUSGS / mergeflow$cfsRIJody
+
+
+nrow(mergeflow)
+mergeflowCloseDaily <- mergeflow
+#mergeflowCloseDaily <- mergeflow[mergeflow$DischargeDiff>=.95 & mergeflow$DischargeDiff<=1.05,]
+mergeflowCloseDaily<- mergeflowCloseDaily[c("Date","cfsRIUSGS","cfsRIJody","DischargeDiff","daily_record_count")]
+
+
+nrow(mergeflowCloseDaily)
+
+#find 15 minute records which match the selected daily records. 
+
+nrow(RIFullFlow2)
+
+RIFullFlow2$Date<- as.POSIXct(RIFullFlow2$Day,format="%m/%d/%Y")
+
+#RIFullFlow2 <- RIFullFlow[RIFullFlow$Date == mergeflowClose$Date,]
+RIFullFlow2<-merge(RIFullFlow2,mergeflowCloseDaily,  by="Date")
+RIFullFlow2<- RIFullFlow2[order(RIFullFlow2$DateTime),]
+
+RIFullFlow2$cfsUSGS_mean_daily<-RIFullFlow2$cfsRIUSGS
+RIFullFlow2$cfsFromJody_mean_daily<-RIFullFlow2$cfsRIJody
+
+#RIFullFlow2$DischargeDiff <- RIFullFlow2$cfsUSGS_mean_daily / RIFullFlow2$cfsFromJody_mean_daily
+
+#RIFullFlow2 <- RIFullFlow2[RIFullFlow2$DischargeDiff>=.95 & RIFullFlow2$DischargeDiff<=1.05,]
+#keep only the 05 time records where the 15 minute was recorded at 12:05 AM instead of 12:00 AM 
+RIFullFlow3 <- RIFullFlow2[RIFullFlow2$TimewH == "00:05:00" & RIFullFlow2$daily_record_count ==96,]
+RIFullFlow2 <- RIFullFlow2[RIFullFlow2$TimewH != "00:05:00",]
+RIFullFlow2 <- merge(RIFullFlow2,RIFullFlow3,all=TRUE)
+
+RIFullFlow2<- RIFullFlow2[c("DateTime","Date", "USGS_cfps","USGS_STAGE","cfsUSGS_mean_daily","cfsFromJody_mean_daily","DischargeDiff","daily_record_count")]
+
+
+nrow(RIFullFlow2)
+
+#full 15 minute record
+# write.csv(RIFullFlow2,
+#     "./RICloseDischarge15minFromJody.csv",na="NA",,row.names=TRUE)
+
+#mergeflowCloseDaily$DateTime[!is.finite(mergeflowCloseDaily$DateTime)] <- NA
+
+
+#daily record
+# write.csv(mergeflowCloseDaily,
+#      "./RICloseDischargeDailyUSGSJody.csv",na="NA",,row.names=TRUE)
+
+
+#find the discharge records for the suspended sediment records. 
+RIForSummaries$DateTime <- as.character(RIForSummaries[,5])
+RIForSummaries$DateTime <- as.POSIXct(strptime(RIForSummaries$DateTime ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico")) 
+RIForSummaries$Date<- format(RIForSummaries$DateTime, "%m/%d/%Y") 
+RIForSummaries$Date<- as.POSIXct(RIForSummaries$Date,format="%m/%d/%Y")
+
+RIForSummariesMerged<- merge(RIForSummaries,mergeflowCloseDaily,by="Date")
+RIForSummariesMerged<- merge(RIForSummariesMerged,RIFullFlow,by="DateTime")
+RIForSummariesMerged<- RIForSummariesMerged[c("DateTime","Sample_Date","cfsRIUSGS", "cfsRIJody", "USGS_cfps",
+                                              "LTER.TSS.mgL.", "SSC_mgL_DatosMcDowell")]
+
+#write.csv(RIForSummariesMerged,
+#     "./RIExport5-22.csv",na="NA",,row.names=TRUE)
+#mergeflowCloseDaily cfsmprUSGS and cfsmprJody
+#MPRFullFlow #USGS_cfps Jody 15 min cfps 
+Final_SS_RI <- RIForSummariesMerged
+
+#MPRFullFlowShort<- MPRFullFlow[MPRFullFlow$DateTime == Final_SS_MPR$DateTime,]
+
+#Final_SS_MPR$Qi<- ifelse(MPRFullFlow$DateTime == Final_SS_MPR$DateTime,Final_SS_MPR$USGS_cfps, NA)
+Final_SS_RI2<- Final_SS_RI
+#Final_SS_RI<- Final_SS_RI2
+Final_SS_RI$USGS_cfps  <-Final_SS_RI$cfsRIJody
+Final_SS_RI$cfsRIJody<- NULL
+Final_SS_RI <- Final_SS_RI[c("DateTime","USGS_cfps")]
+Final_SS_RI$DateTime0 <- Final_SS_RI$DateTime - hours(3)
+Final_SS_RI$DateTime1 <- Final_SS_RI$DateTime - hours(2)  - minutes(45)
+Final_SS_RI$DateTime2 <- Final_SS_RI$DateTime - hours(3)  - minutes(15) 
+  
+Final_SS_RIMerged<- merge(Final_SS_RI,RIFullFlow2,by='DateTime', all.x=TRUE)
+Final_SS_RIMerged<- merge(Final_SS_RIMerged,RIFullFlow2,by.x='DateTime0',by.y="DateTime",suffixes=c(".x",".0"))
+Final_SS_RIMerged2<- merge(Final_SS_RIMerged,RIFullFlow2,by.x='DateTime1',by.y="DateTime",suffixes=c(".x",".1"))
+Final_SS_RIMerged3<- merge(Final_SS_RIMerged2,RIFullFlow2,by.x='DateTime2',by.y="DateTime",suffixes=c(".1",".2"))
+
+Final_SS_RIMerged3$AvgQi <-  (Final_SS_RIMerged3$USGS_cfps.x+Final_SS_RIMerged3$USGS_cfps.1+Final_SS_RIMerged3$USGS_cfps) / 3
+
+Final_SS_RIMerged3$AvgQicms <- Final_SS_RIMerged3$AvgQi *0.0283
+Final_SS_RIMerged3$USGS_cfps.x <- Final_SS_RIMerged3$USGS_cfps.x *0.0283
+
+Final_SS_RIMerged3$AvgQiDelta <-Final_SS_RIMerged3$USGS_cfps.x -Final_SS_RIMerged3$AvgQicms
+
+#Final_SS_RIMerged3 <- Final_SS_RIMerged3[c("DateTime","Final_SS_RI","Rounded_Time", "AvgQiDelta","USGS_cfps.x",
+                                            # "USGS_cfps.0","USGS_cfps.1","USGS_cfps.2")]
+Final_SS_RIMerged3<-  Final_SS_RIMerged3[c("DateTime","DateTime0","DateTime1","DateTime2", "AvgQicms", "AvgQiDelta")]
+#Final_SS_RIMerged3$Final_SS_RI <- as.POSIXct(strptime(Final_SS_RIMerged3$Final_SS_RI ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+#Final_SS_RIMerged3$Rounded_Time <- as.POSIXct(strptime(Final_SS_RIMerged3$Rounded_Time ,format="%m/%d/%Y %H:%M",tz="America/Puerto_Rico"))
+Final_SS_RI3 <- merge(Final_SS_RI2,Final_SS_RIMerged3, by="DateTime")
+
+write.csv(Final_SS_RI3,
+          "./RI_final_SS_SamplesUSGS.csv",na="NA",row.names=FALSE)
